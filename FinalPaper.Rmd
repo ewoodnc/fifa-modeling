@@ -1,0 +1,284 @@
+---
+title: "Predictive Modeling in the FIFA Video Game"
+author: "STOR 320.02 Group 11"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE, message=F}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(gridExtra)
+library(reshape2)
+library(leaps)
+library(modelr)
+library(gganimate)
+library(gifski)
+library(knitr)
+library(kableExtra)
+library(fmsb)
+library(dplyr)
+library(kableExtra)
+
+
+fifa.all.vertical = read_csv("fifa.all.vertical.csv")
+xtab.df = read_csv("Eric.xtable.dataframe.csv")
+
+FIFA21=read.csv("FIFA21.csv")
+
+
+FIFA21.BASIC.SKILLS=select(FIFA21,"pace","shooting","passing","dribbling","defending","physic")
+```
+
+```{r, include=F}
+#simplifies dataset to only necessary variables
+fifa2.1 = fifa.all.vertical %>%
+  select(4,6,8,9,13:15,17, 19:23, 28)
+
+#all required for results part 2 figure 2, but have to be before data section figure 1
+fifa2.2 = fifa2.1 %>%
+  filter(age<=27) %>%
+  filter(team_position != "GK")
+
+mod2.2 = lm(potential ~ age + overall, data=fifa2.2)
+
+fifa2.cv = fifa2.2 %>% crossv_kfold(10)
+
+#sets up for data section figure 1
+fifa.datasection = fifa2.2 %>%
+  select(1:4,6,7,10:12)
+```
+
+
+### Introduction
+
+Without a doubt, the world’s most popular sport is soccer. With an estimated 250 million players, soccer players alone would make up the world’s 5th most populated country. Therefore, it’s not unreasonable to assume that a couple of these players and their fans might be interested in a video game about their favorite pastime. 
+
+
+FIFA is a soccer video game where you can play, build, and manage your favorite teams. Electronic Arts has been making yearly editions of “FIFA” since the 90’s. It is incredibly detailed and remastered every year with updated rosters and players, which makes the game very immersive for its players. Subsequently, we decided to tackle two problems that examine the players' functionality and predicted performance. 
+
+
+Our first question is “What **position** tends to make the best replacement for a central midfielder?” While seemingly arbitrary at first, it is important to consider that central midfielders are some of the most important positions in soccer, both in FIFA and in real life. It is the backbone of any team, and it can be difficult to run a successful franchise in FIFA without a strong core in the center of the field. Plus, with their versatility of being strong offensive and defensive players, it is not an easy task to find great replacements for central midfield players. At both a casual and professional level in FIFA, central midfielders are the most frequent position to be substituted in-game. This is due to them facing the steepest decline in “**stamina**” throughout the course of a game, meaning the benefit of replacing them with fresh legs tends to be greater than other positions. However, midfielders tend to be some of the most expensive in-game players because of their crucial role. Thus, many FIFA gamers resort to choosing other positions to fill such as their midfield substitutes. With our first question, we seek to build a predictive model that assesses the **overall** ability of midfield players, and then apply that model to other position groups to see which tend to have the greatest ability to act as sub-in central midfielders. 
+
+
+Our second question is “Can we accurately predict player **potential**, and thus gain a competitive edge before this variable is available to the public?” In FIFA, one of the most critical aspects of player development for your “Club” is growing young players from their base **overall** rating to their higher **potential** rating. This is a very advantageous strategy because it allows you to purchase cheap, young players and grow them into elite players for your club, without having to pay the typical price for an elite player. It is clear that **age** is (one of) the impactful contributing factor(s) in calculating **potential**, but the difference in **potential** and **overall** is impacted by a lot more than just **age.** In our EDA, we discovered that for 17-year-old players, the difference in **potential** and **overall** ranged from 3 to 28 rating points. However, without the help of supplementary websites that calculate the **potential** for different players, there is no way to know how good a particular player can get. This is especially true during the very important first few weeks of each game iteration where data about player **potential** is not fully available yet. Utilizing and applying this model at the advent of a new FIFA game, we could give FIFA gamers a notable competitive edge before the crowd-sourced **potential** ratings of players at various **ages**/**overalls** becomes available. 
+
+
+### Data
+
+
+We used seven, from 2015 to 2021, complete player datasets for FIFA. The datasets were collected and published on an annual basis. Stefano Leone, an experienced Data Analyst and frequent Kaggle user scraped all datasets from 'https://sofifa.com/', and uploaded them to ‘http://kaggle.com’, where they were acquired and then combined by us. The Sofifa database is a credible database updated yearly for each new iteration of the FIFA videogame. The number of observations ranged from 16155 to 18944 across the seven year span, and there are a total of 122841 observations. Each observation represents an individual player in FIFA for one particular year. Thus, there are some players with up to seven observations. The columns of the data represent 107 variables for each player including players' personal information of wage, players' position in the club or national teams, and players' statistical attributes of a variety of different skills. 
+
+
+```{r, echo=F, message=F}
+#data section figure 1
+datasection.table = kbl(fifa.datasection[c(1,3:5,7,8),]) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), font_size = 11) 
+
+datasection.table
+```
+
+
+In order to answer the questions we proposed, we focused on 20 of the 107 variables. First, it should be noted that whenever we refer to "central midfielders", we refer to a player in our dataset whose **team_position** is equal to CAM, CM, CDM, RCM, or LCM (central attacking midfielder, central midfielder, central defensive midfielder, right center midfielder, and left center midfielder, respectively). Not surprisingly, **age** was an important variable used in answering each of the two main questions. To answer our first question, we thoroughly considered nine important aspects for a good central midfielder that were found using a correlation matrix, and grouping together variables that were highly correlated. Those nine variables represent the on-field ratings of players for a particular attribute on a scale of 0 to 100. **Shooting**, **passing**, **dribbling**, and **defending** are all fairly self-explanatory. **Pace** represents a player's speed in running on the pitch. **Physic** stands for the physical and represents the overall fitness and physicality of a player. **Movement_agility** measures how agile a player can be while moving and turning. **Power_stamina** determines how fast a player's fitness declines during a game. Finally, **mentality_aggression** is a combination of a player's frequency and aggression level of jostling, tackling and slide tackling. **Pace**, **shooting**, **passing**, **dribbling**, **defending**, and **physic** are the six most important statistics for all soccer players. Thiago Silva is a Brazilian center-back; a radar graph below demonstrates the relative magnitude of his basic skills' ratings. 
+
+
+```{r, echo=F, message=F}
+#data section figure 2
+max_min=data.frame(pace=c(100,0),shooting=c(100,0),passing=c(100,0),dribbling=c(100,0),defending=c(100,0),physic=c(100,0)
+)
+rownames(max_min)=c("Max", "Min")
+FIFA21.RADAR=rbind(max_min,FIFA21.BASIC.SKILLS)
+Thiago.Silva=FIFA21.RADAR[c("Max","Min","83"), ]
+radarchart(Thiago.Silva,
+#title 
+title="Thiago Silva Basic Attributes",
+#grids 
+cglty="solid",cglcol="grey70",cglwd=0.7,
+#lines 
+plwd=5,
+pcol="lightskyblue",
+#fill 
+pfcol=scales::alpha("lightskyblue",0.6),
+#axis 
+axistype=1,caxislabels=c(0,25,50,75,100),axislabcol="grey40",
+)
+```
+
+
+To answer our second question, we examined many of the previously stated variables, as well as eight other variables to help predict a player’s **potential.** **Weight_kg** and **height_cm** measure a player's weight in kilograms and height in centimeters. **Preferred_foot** states a player's preferred foot in shooting. **Weak_foot** rates the ability of a player to shoot with his non-preferred foot on a scale of 1 to 5. **League_rank** is based upon the league of a player's club: leagues ranked 1 are the highest league in a given country, 2 are the second highest league, etc.  **Skill_moves** represents a player's ability to perform different technical moves and tricks on the field, and is on a scale of 1 to 5. Once again, the following variables measure some aspect of player ability on a scale of 0 to 100. **Potential**, in FIFA’s opinion, is the best a player could possibly end up being over the course of his entire career. **Overall** is the overall rating of a player, which is determined by some combination of other player statistics, among other things (the formula has never been stated by FIFA, which is what makes it worth exploring!). Finally, **International_reputation** is a subjective rating of how popular a player is in world soccer. 
+
+
+### Results 
+
+#### *Question 1*
+
+
+Our 1st question tries to see if we can find a model that can predict which kinds of players would be more suitable to play as a central midfielder. There are several ways to go about this, but the best way to measure if a player would be a suitable central midfielder is to estimate what overall they would be if they played in the central midfield. At first, we used a logistic regression model to predict a binary response if a player seemed to be a good center midfielder. However, this model would strongly favor higher overall players and ignore lower overall ones, which does not help the average FIFA user who does not have a team full of high overall players. Most highly rated players, regardless of attributes, would return as a central midfielder and vice versa for lower rated players. Therefore, a more dynamic linear model that predicts what a player’s overall would be at central midfield would tackle this problem better. This kind of model would help out any kind of FIFA user, one with a team of low rated rookies and a team with some of the best players in the world.  
+
+
+Using the 10 variables noted in the Data Section, these predictors for overall were plugged into the function **regsubsets()** from the leaps package to try to narrow our choices of models to several linear models. We took the observations in the FIFA dataset of central midfielders, and used the function **regsubsets()** to create several linear models from the 10 OR SO selected variables. The function **regsubsets()** returns the best linear model when using 1 of the variables, 2 of the variables, and so on. It decides which variable is the best from r^2, adjusted r^2, and Mallow’s CP. From this, we created 5 models, plus the intercept model as a control. The 5 models found using **regsubsets()** were the best models that used 1, 2, 3, 4, and 5 variables.
+
+
+Since building these models did not come with any form of cross validation (CV), we decided to use CV after selecting the 6 models. Using the k-folds method, we split out the data into 10 folds to retrieve the mean absolute error (MAE), and average every fold’s MAE together. This lets us build and test our models 10 different ways, instead of just once, which would have left room for error. Once we averaged out the MAE and completed the CV, we began accurately comparing and choosing our best models. 
+
+
+Our intercept model that was used as control returned an MAE of 5.05. This was the basis of comparison, and any model we wanted to select should have a lower MAE than this. If a model does not have a lower MAE, then it means that that model could not predict better than what the average the intercept model could come up with. Thankfully, none of our models had a higher MAE than the intercept model. The best one variable linear model that **regsubsets()** returned a MAE of 2.61, the best two way variable linear model returned a MAE of 2.42, the best three way variable linear model returned a MAE of 2.01, the best four way variable linear model returned a MAE of 1.98, and the best five way variable linear model returned a MAE of 1.95. Because our MAE is dealing in units of **overall**, a variable that only changes by integers, a difference of 0.06 between our three way model and five way model is negligible, but a difference of 0.41 between our two way model and our three way model is enough to consider a difference. Therefore, we will be using our three way linear model, which uses the **passing**, **dribbling**, and **physic** variables to predict a central midfielder's overall. With coefficients, the formula is exactly: **overall** = 3.275725 + 0.393889 * **passing** + 0.382776  * **dribbling** + 0.202424 * **physic**. 
+
+
+After applying this model to the other positions of players, each player now has their new **midfielder overall**, which is what their overall is predicted to be if they were to play in the central midfield. To get a better understanding of how a players overall changes based on their **midfield overall**, we created a variable called **difference**, which is created from **midfield overall** - **overall**. So, a negative difference means that a player's **overall** is projected to decrease when changing from their position to the central midfield. We can see how each position's overall changes when moving to central midfield in this graph below that shows the relationship between **difference** and position:
+
+
+```{r, echo=F, message=F}
+fifa1.1 = fifa.all.vertical %>%
+  filter(player_positions != 'GK') %>%
+  #select(4,6,8,9,13:15,17, 19:23, 28,60,65,68) %>%
+  select(4,6,14,23,28,35:40,60, 65,68)
+
+#data setup
+fifa1.2 = fifa1.1 %>% filter(team_position == "CM" | team_position=="CAM" | team_position=="CDM" |team_position == "LCM" | team_position=="RCM")
+
+model.r = lm(overall ~ passing + dribbling + physic, data=fifa1.2)
+
+predict.mid = fifa.all.vertical %>%
+  filter(team_position != 'GK') %>%
+  filter(team_position != 'CM') %>%
+  filter(team_position != 'CAM') %>%
+  filter(team_position != 'CDM') %>%
+  filter(team_position != 'RCM') %>%
+  filter(team_position != 'LCM')
+
+
+
+predict.mid2 = predict.mid %>% add_predictions(model.r,var="Midfielder Overall")
+
+
+
+predict.mid3 =  predict.mid2 %>%
+  select(4,6,14,28,35:40,60, 65,68,108)
+
+predict.mid4 = predict.mid3 %>%
+  mutate(difference = `Midfielder Overall` - overall) %>%
+  select(age, overall, `Midfielder Overall`, difference, short_name, team_position:mentality_aggression)
+
+pm5 = predict.mid4 %>%
+  group_by(team_position)%>%
+  summarize(
+    n = n(),
+    mean = mean(difference),
+    sd = sd(difference)
+  )
+pm6 = pm5 %>%
+  arrange(desc(mean))
+
+
+pm7 = pm6 %>%
+mutate(`General Position` = case_when(team_position == 'CF' |team_position== 'LW' |team_position== 'ST' |team_position== 'RS'|team_position== 'RW'|team_position== 'LS'|team_position== 'RF'|team_position== 'LF' ~ 'Offense', team_position== 'LCM' |team_position== 'LM'|team_position== 'RCM'|team_position== 'CAM'|team_position== 'LDM'|team_position== 'CM'|team_position== 'CDM'|team_position== 'RDM'|team_position== 'RM'|team_position== 'RAM'|team_position== 'LAM' ~ 'Midfielder', team_position== 'CB'|team_position== 'RB'|team_position== 'LCB'|team_position== 'LB'|team_position== 'RWB'|team_position== 'RCB'|team_position== 'LWB' ~ 'Defender')) %>%
+  filter(team_position != "RES") %>%
+  filter(team_position != "SUB")
+
+pm.graph2 = pm7
+
+pm.graph2$team_position <- factor(pm.graph2$team_position, levels = pm.graph2$team_position[order(-pm.graph2$mean)])
+
+my_colors <- c("black","lightskyblue","white")
+names(my_colors) <- levels(factor(c(levels(pm.graph2$`General Position`)))) 
+my_scale <- scale_fill_manual(name = "General Position", values = my_colors)              
+
+ggplot(pm.graph2, aes(x = team_position, y = mean, color = `General Position`)) + scale_color_manual(values=c("black","white","lightskyblue")) + theme_dark() + geom_bar(stat = "identity") + labs(x = "Position", y = "Difference",
+ title ="Difference In Overall For Each Position") +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+
+As we can see, other non-central midfield positions tend to be best, then some offensive positions do a bit worse, like LF and RF, and then the defensive positions seem to do the worst, like CB, LCB, and RCB. Overall, a LDM (left defensive midfielder) seems to be the best replacement for any central midfielder, followed by LM (left midfielder), but this might vary organization to organization in FIFA. One team might not have a strong LDM and might have to go to their next best option. To truly decide how to best replace your central midfielders, you could use the formula for the linear model, but that could take time to do for all your players without a program readily set up. A much quicker way to decide who is best to replace your central midfielders is to reference the graph above and the table below. If you cannot decide between two different players from just using the graph, you can reference the table below to differentiate. Here, the table shows the three variables that were used to create the model, and their average across a player's position and overall. If one player seems to be above the averages for passing, dribbling and physic, then they might be a good choice to replace a central midfielder since they will likely outperform the average **difference** that is shown in the graph. In an effort to save space, the top 10 **overalls** from RB (right backs) are shown as an example:
+
+
+```{r, echo=F, message=F, warning= F}
+fifa.pos.table.def = predict.mid4 %>%
+  group_by(team_position,overall) %>%
+  summarise(
+    `Passing Average` = mean(passing),
+    `Dribbling Average` = mean(dribbling),
+    `Physic Average` = mean(physic)
+  )  %>% ungroup(team_position,overall) %>%
+  filter(team_position== "RB") %>%
+  rename(`Defensive Positions` = team_position)
+
+fifa.pos.table.def2 =fifa.pos.table.def %>%
+  rename(Overall = overall) %>%
+  arrange(desc(Overall)) #%>%
+  #head(fifa.pos.table.def, 10)
+
+fifa.pos.table.def3 = fifa.pos.table.def2[1:10,]
+
+
+position.table.def = kbl(fifa.pos.table.def3) %>%
+kable_styling(bootstrap_options = c("striped", "hover", "condensed"), font_size = 11)
+
+position.table.def
+
+```
+
+
+#### *Question 2*
+
+
+Our second question attempts to understand the most important factors in determining the **potential** rating for a player. The first quandary we experienced with this question was whether to use **potential** as the response variable in our models or to create a variable **growth** = **potential** – **overall**. Both have benefits and downsides. Using **potential** runs into the problem of older players who have incredibly high **potential** but also incredibly high **overall** (not who we want to target). Using a variable like **growth** has almost the opposite effect; where a player who is currently 50 **overall** with 80 **potential** seems far better than a player who is 80 **overall** with 95 **potential.** This is an issue because although the first player has much more room to grow, peak ability is also something that FIFA gamers are interested in. To find some sort of middle ground between these two conflicting ideas, we decided to use **potential**, but with a filtered player pool. From our EDA, we learned that every player over 27 years old has a growth of less than or equal to 3. For this reason, we decided to eliminate all players over the age of 27 from our model creation, because they are already too close to their peak **overall**, and thus will likely only be offered at a minimal discount from their maximum price.
+
+
+Next came the creation of the models for our second question. To ensure that all models were being assessed based on the results they would give when applied to new data (albeit it would likely be a different game iteration), we utilized cross-validation to compare models. We wanted to check 5-7 unique models with cross-validation, and our choice of models first included 2 very simple models based on the variables we believed to be the most influential in the model. For the remainder of the models to check with cross-validation, we utilized the function **regsubsets()** in the leaps package, which exhaustively checks all possible model combinations and outputs the r^2, adjusted r^2, and Mallow’s CP, which is another measure of model accuracy that penalizes for overly complex models. With this method, there were 3 models that had joint-highest adjusted r^2 and lower Mallow’s CP than the other ones produced. For this reason, these 3, along with the 2 simple models will be the ones that we consider for cross-validation. Mod2.3, mod2.4, and mod2.5 all had adjusted r^2 of .8676, and Mallow’s CP of 8.89, 9.09, and 9.27, respectively. The names and formulas for the 5 models considered for cross-validation can be seen in the table following the later in this subsection.
+
+
+With cross-validation for this question, we decided to go with the typical number of folds, 10. After splitting the data into 10 folds and running all of the models on each fold, we found the mean absolute error (MAE) for each of the folds for each model. To find the overall MAE for each of the 5 models, we averaged the MAE for each model across the 10 folds. We found that the model only predicting age had performed the worst, with an overall MAE of 4.994. For the other 4 models, however, the MAE was incredibly similar. Models 2.2 through 2.5 had MAE values of 1.6872, 1.6914, 1.6913, and 1.6914, respectively. Surprisingly, the second simplest model was the best at predicting out-of-sample potential! However, this is the only model that included the interaction term between **age** and **overall**, and this “fancier” term may have been what caused its better predictive power. Adding this term to the 3 more complicated models resulted in MAE values that ranged from 1.6806 to 1.6814. These are all slightly better than the original model 2.2. We also looked to remove the interaction term from model 2.2. This resulted in an MAE that was only slightly worse at 1.6972. Regardless of all of this, having values for MAE that range between 1.6806 and 1.6972 will likely have little to no impact on how well our model can predict **potential.** This is because **potential** is always rounded to the nearest integer, and therefore a difference of less than .02 rating points will simply not matter that much. We did also look at potentially using a model with only **overall**, but this had a much worse MAE of 3.4067.
+
+
+Below is a table generated using the function xtable() in R that displays the formula and some of the key characteristics for each of the main models considered for use in answering this question.
+
+
+```{r, echo=F, message=F}
+#results Q2 figure 1
+q2.table = kbl(xtab.df[,]) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), font_size = 11) 
+
+q2.table
+```
+
+
+Because models 2.2, 2.3, 2.4, and 2.5 all had incredibly similar out-of-sample predictive ability, we chose to use the simplest model, the modified model 2.2B as our final model. This final model with coefficients is potential = 42.995 + (-1.461)**age** + (.955)**overall**. To explore a little how this model works, we created an animated figure that displays a density plot comparing **overall** and **potential**, where density is based on the number of players at a given pair of values. **Age** is incorporated into the animated figure with each “slide” showing the described density plot for a particular **age**. Although this does not show how **age** and **overall** work simultaneously, which is what our model does, it is easy to recognize that as **age** increases, the densest part of the plot moves down and to the right, which indicates that **age** should enter into the model for **potential** negatively. Further, the general shape of the entire plot at any **age** indicates that as the **overall** increases, so will **potential**, which is indeed in agreement with **overall** entering into the model positively. The diagonal line at y=x is present, particularly for older players, because there is no possibility for the **overall** of a player to ever be higher than the **potential** in any observation. One final thing that the plot shows us is that as **age** increases, the plot gets “skinnier”. This makes sense and demonstrates the idea that younger players tend to have more room to grow than older ones.
+
+
+```{r, echo=F, message=F}
+#results Q2 figure 2
+  figure2.1 = fifa2.2 %>%
+      group_by(overall,potential,age) %>%
+      summarize(Density=n()) %>%
+      ungroup() %>%
+      ggplot() +
+      geom_tile(aes(x=overall,y=potential,fill=Density)) +
+      scale_fill_gradientn(colors=c("black","lightskyblue","white"))  + 
+      theme_dark() +
+      ylab("Potential")  + 
+      xlab("Overall") + 
+      transition_states(age, transition_length = 5, state_length=10, wrap=FALSE) +
+      labs(title = "Potential and Overall at Age: {closest_state}")
+    
+    animate(figure2.1, fps=5, duration = 50, end_pause=20)
+```
+
+
+### Conclusion 
+
+Analysis of the FIFA 2015-2021 dataset focused around two questions. The first question asked “Which **position** tends to make the best replacement for a center midfielder?” and the second question analyzed was “Can we accurately predict player **potential**, and thus gain a competitive edge before this information is available to the public?” Both of these questions utilized a subset of the 107 variables available to create models that would lead us to applicable solutions. 
+
+
+For our first question, we sought to find the best replacement for central midfielders, the most important and demanding positions on the soccer field. Because of their importance on the pitch, it is important to have a quality replacement ready if one of your central midfielders were to get injured or if some leave at the end of the season. We found that overall, LDM (left defensive midfielders) make the best fit for central midfielders, but on a team by team basis this might be different. Teams will have better players in different positions than other teams, but by using the graphs, tables, and linear model provided, any player in FIFA can find the very best replacement they have on their team for a central midfielder. By using **passing**, **dribbling**, and **physic**, our model can accuracy predict within about +/- 2 **overall** of what a central midfielder's **overall** will be. When we apply this model to other players that could be replacements to these central midfielders, we will have a sharp idea on how they will respond with their own projected **midfielder overall**. This gives FIFA gamers a leg up in their game and lets them be more prepared to run a successful and adaptive franchise.
+
+
+We found that a very simple linear model, which only included the predictors **age** and **overall** worked best in predicting the **potential** rating of a player. Our final model had an R-squared value of just under 87%, indicating that 87% of the variation in **potential** could be explained by our model. As introduced at the start of our paper, this has a major real-world implication for FIFA gamers. Young players with very high **potential** are a highly sought out asset, as they are able to grow into high-rated players but don’t have the price tag of a player who is already high-rated. However, data on the **potential** for a given player at any age is not provided by FIFA, and is only available via second-party, crowd-sourced websites and calculators. Upon searching for these, none work effectively or are up to date, and so having a model to predict **potential** could prove to be a necessary asset for FIFA gamers, particularly in the opening few weeks of the game. This result (the model containing only two variables) was somewhat surprising, only in that it is exactly what you would expect. It essentially tells us that the best players to have high **potential** are young, good players. However, it is still useful as we are able to predict **potential** ratings with a mean absolute error of approximately 1.7 rating points.
+
+
+Although these questions and the answers to them are not changing the world, they could certainly make a significant difference for FIFA gamers. We are relatively happy with the approach we took to answer our two questions, but there is certainly room for expansion on the outcomes that were produced. One piece of data that was absent from analysis was player in-game cost (which represents how much a FIFA gamer has to pay for a player card), which could be a better dependent variable than the ones that were utilized. This is because not all high-rated players are sought out by FIFA gamers. However, this data is difficult to work with because market-decided prices of players constantly change, and slowly decline throughout the life cycle of a FIFA game. One area where our approach could be applied, and have a much larger impact, is in real world soccer. Just like with our first question, finding replacements for central midfielders in the real world is a vital task for soccer coaches everywhere, and being able to pick ideal players using some sort of model could potentially eliminate some of the time spent by coaches guessing and checking which players fit in well as a central midfielder.
+
