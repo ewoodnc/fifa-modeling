@@ -4,7 +4,7 @@ Data analysis using data from FIFA, a soccer video game, to help with in game ma
 1. Can we create a model that can predict which kinds of players would be more suitable to play as a different position? Using a model like this would help players find new soccer players that would fit best into the positions they currently lack.
 2. What are the most important factors in determining the potential rating for a player? The potential rating states how good a player might be in the future. If you were to know how to predict what this rating might be, then you could find the next Lionel Messi.
 
-Included is an HTML file of the written data analysis that explains the data, our questions in greater detail, our results, and most importantly the statistical and analytical methods we used to come to those results. 
+Included is an HTML file of the written data analysis that explains the data, our questions in greater detail, our results, and most importantly the statistical and analytical methods we used to come to those results. Be sure to download the file to view it properly. 
 Also included is the RMD file of the code and the data used so that you can run in R Studio youself. 
 
 This project and analysis gave me expierence in many parts of statistics and data analysis including but not limited to:
